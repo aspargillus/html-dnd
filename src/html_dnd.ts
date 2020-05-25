@@ -50,6 +50,34 @@ namespace dnd {
     }, hoverTime);
   }
 
+  export class Simulation {
+    private store: DragDataStore;
+    private dataTransfer: DataTransfer;
+
+    constructor(private draggable: Element, private droppable: Element) {
+      this.store = new DragDataStore();
+      this.store.mode = "readwrite";
+      this.dataTransfer = new DataTransfer(this.store);
+    }
+
+    dragStart() {
+      dragStart(this.draggable, this.dataTransfer);
+    }
+
+    dragOver() {
+      dragOver(this.store, this.droppable, this.dataTransfer);
+    }
+
+
+    drop() {
+      drop(this.droppable, this.dataTransfer);
+    }
+
+    endDrag() {
+      endDrag(this.store, this.draggable, this.dataTransfer);
+    }
+  }
+
   function dragStart(draggable: Element, dataTransfer: DataTransfer): void {
     const dragstartEvent = createEventWithDataTransfer("dragstart", dataTransfer);
     draggable.dispatchEvent(dragstartEvent);
