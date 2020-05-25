@@ -72,8 +72,8 @@ namespace dnd {
       dragOverElement(this.droppable, { x, y }, this.dataTransfer);
     }
 
-    drop() {
-      drop(this.droppable, this.dataTransfer);
+    drop(element?: Element) {
+      drop(element || this.droppable, this.dataTransfer);
     }
 
     endDrag() {
