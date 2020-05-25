@@ -68,6 +68,9 @@ namespace dnd {
       dragOver(this.store, this.droppable, this.dataTransfer);
     }
 
+    dragOverElement(x: number, y: number) {
+      dragOverElement(this.droppable, { x, y }, this.dataTransfer);
+    }
 
     drop() {
       drop(this.droppable, this.dataTransfer);
@@ -90,7 +93,16 @@ namespace dnd {
     const dragEnterEvent = createEventWithDataTransfer("dragenter", dataTransfer);
     droppable.dispatchEvent(dragEnterEvent);
 
+    dragOverElement(droppable, { x: 0, y: 0 }, dataTransfer);
+  }
+
+  function dragOverElement(droppable: Element, offset: { x: number, y: number }, dataTransfer: DataTransfer) {
     const dragOverEvent = createEventWithDataTransfer("dragover", dataTransfer);
+    const {pageX, pageY} = elementCenterInPage(droppable);
+    // We are assigning read-only properties here.
+    // That only works because this is not a browser-created native event!
+    dragOverEvent.pageX = pageX + offset.x;
+    dragOverEvent.pageY = pageY + offset.y;
     droppable.dispatchEvent(dragOverEvent);
   }
 
@@ -125,6 +137,14 @@ namespace dnd {
     event.initCustomEvent(type, true, true, null);
     event.dataTransfer = dataTransfer;
     return event;
+  }
+
+  function elementCenterInPage(droppable: Element) {
+    let rect = droppable.getBoundingClientRect();
+    return {
+      pageX : window.scrollX + rect.left + rect.width / 2,
+      pageY : window.scrollY + rect.top + rect.height / 2,
+    };
   }
 
 
