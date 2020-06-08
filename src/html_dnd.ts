@@ -53,23 +53,28 @@ namespace dnd {
   export class Simulation {
     private store: DragDataStore;
     private dataTransfer: DataTransfer;
+    private marker: HTMLElement;
 
-    constructor(private draggable: Element, private droppable: Element) {
+    constructor(private draggable: HTMLElement, private droppable: HTMLElement) {
       this.store = new DragDataStore();
       this.store.mode = "readwrite";
       this.dataTransfer = new DataTransfer(this.store);
+      droppable.style.outline = "thin double #ffa1ce";
+      this.marker = Simulation.createAndAttachMarker(droppable);
     }
 
     dragStart() {
       dragStart(this.draggable, this.dataTransfer);
     }
 
-    dragOver() {
-      dragOver(this.store, this.droppable, this.dataTransfer);
+    dragOver(x: number, y: number) {
+      const event = dragOver(this.store, this.droppable, this.dataTransfer, x, y);
+      this.moveMarkerToEventPageCoordinates(event);
     }
 
     dragOverElement(x: number, y: number) {
-      dragOverElement(this.droppable, { x, y }, this.dataTransfer);
+      const event = dragOverElement(this.droppable, x, y, this.dataTransfer);
+      this.moveMarkerToEventPageCoordinates(event);
     }
 
     drop(element?: Element) {
@@ -79,6 +84,39 @@ namespace dnd {
     endDrag() {
       endDrag(this.store, this.draggable, this.dataTransfer);
     }
+
+    private moveMarkerToEventPageCoordinates(event: MouseEvent) {
+      this.marker.style.left = `${event.pageX}px`;
+      this.marker.style.top = `${event.pageY}px`;
+    }
+
+    private static createAndAttachMarker(droppable: HTMLElement): HTMLElement {
+      const style = document.createElement("style");
+      style.textContent = `
+      #content_main {
+        outline: thin double #ffa1ce;
+      }
+      #dnd-debug-marker {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        box-sizing: border-box;
+        top: -9999px;
+        left: -9999px;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 0, 0, 0.2);
+        border: thin solid rgba(255, 255, 255, 0.75);
+        border-radius: 50%;
+        z-index: 9999;
+      }
+    `;
+      const body = (droppable as any).closest("body");
+      const marker = document.createElement("div");
+      marker.id  = "dnd-debug-marker";
+      body.appendChild(style);
+      body.appendChild(marker);
+      return marker;
+    }
   }
 
   function dragStart(draggable: Element, dataTransfer: DataTransfer): void {
@@ -86,24 +124,25 @@ namespace dnd {
     draggable.dispatchEvent(dragstartEvent);
   }
 
-  function dragOver(store: DragDataStore, droppable: Element, dataTransfer: DataTransfer): void {
+  function dragOver(store: DragDataStore, droppable: Element, dataTransfer: DataTransfer, xOffset: number = 0, yOffset: number = 0): DragEvent {
     // For the drop event. The list of items representing dragged data can be
     // read, including the data. No new data can be added.
     store.mode = "readonly";
     const dragEnterEvent = createEventWithDataTransfer("dragenter", dataTransfer);
     droppable.dispatchEvent(dragEnterEvent);
 
-    dragOverElement(droppable, { x: 0, y: 0 }, dataTransfer);
+    return dragOverElement(droppable, xOffset, yOffset, dataTransfer);
   }
 
-  function dragOverElement(droppable: Element, offset: { x: number, y: number }, dataTransfer: DataTransfer) {
+  function dragOverElement(droppable: Element, xOffset: number, yOffset: number, dataTransfer: DataTransfer): DragEvent {
     const dragOverEvent = createEventWithDataTransfer("dragover", dataTransfer);
-    const {pageX, pageY} = elementCenterInPage(droppable);
+    const { pageX, pageY } = coordinatesOfElementWithOffset(droppable, xOffset, yOffset);
     // We are assigning read-only properties here.
     // That only works because this is not a browser-created native event!
-    dragOverEvent.pageX = pageX + offset.x;
-    dragOverEvent.pageY = pageY + offset.y;
+    dragOverEvent.pageX = pageX;
+    dragOverEvent.pageY = pageY;
     droppable.dispatchEvent(dragOverEvent);
+    return dragOverEvent;
   }
 
   function drop(droppable: Element, dataTransfer: DataTransfer): void {
@@ -129,6 +168,15 @@ namespace dnd {
   }
 
 
+  function coordinatesOfElementWithOffset(droppable: Element, xOffset: number, yOffset: number): { pageX: number, pageY: number } {
+    const rect = droppable.getBoundingClientRect();
+    const body = (droppable as any).closest("body");
+    const bodyRect = body.getBoundingClientRect();
+    const pageX = rect.left - bodyRect.left + xOffset;
+    const pageY = rect.top - bodyRect.top + yOffset;
+    return {pageX, pageY};
+  }
+
   /**
    * Creates an event instance with a DataTransfer.
    */
@@ -138,15 +186,6 @@ namespace dnd {
     event.dataTransfer = dataTransfer;
     return event;
   }
-
-  function elementCenterInPage(droppable: Element) {
-    let rect = droppable.getBoundingClientRect();
-    return {
-      pageX : window.scrollX + rect.left + rect.width / 2,
-      pageY : window.scrollY + rect.top + rect.height / 2,
-    };
-  }
-
 
   type EventType = 'dragstart'
     | 'drag'
@@ -175,7 +214,7 @@ namespace dnd {
 
     /**
      * Returns the kind of operation that is currently selected. If the kind of
-     * operation isn't one of those that is allowed by the effectAllowed
+     * operation isn"t one of those that is allowed by the effectAllowed
      * attribute, then the operation will fail.
      *
      * Can be set, to change the selected operation.
@@ -228,7 +267,7 @@ namespace dnd {
       // If the DataTransfer object is no longer associated with a drag data
       // store, return the empty string and abort these steps.
 
-      // If the drag data store's mode is in the protected mode, return the empty
+      // If the drag data store"s mode is in the protected mode, return the empty
       // string and abort these steps.
       if (this.store.mode === "protected") {
         return "";
@@ -283,7 +322,7 @@ namespace dnd {
         return;
       }
 
-      // If the drag data store's mode is not the read/write mode, abort these
+      // If the drag data store"s mode is not the read/write mode, abort these
       // steps. Nothing happens.
       if (this.store.mode !== "readwrite") {
         return;
@@ -304,7 +343,7 @@ namespace dnd {
       // Unicode string and whose type string is equal to format, if there is
       // one. Add an item to the drag data store item list whose kind is Plain
       // Unicode string, whose type string is equal to format, and whose data
-      // is the string given by the method's second argument.
+      // is the string given by the method"s second argument.
       this.typeTable[format] = data;
       this.types = Object.keys(this.typeTable);
     }
@@ -321,7 +360,7 @@ namespace dnd {
         return;
       }
 
-      // If the drag data store's mode is not the read/write mode, abort these
+      // If the drag data store"s mode is not the read/write mode, abort these
       // steps. Nothing happens.
       if (this.store.mode !== "readwrite") {
         return;
@@ -332,7 +371,7 @@ namespace dnd {
       // these steps.
       if (typeof format === "undefined") {
         // Note: The clearData() method does not affect whether any files were
-        // included in the drag, so the types attribute's list might still not
+        // included in the drag, so the types attribute"s list might still not
         // be empty after calling clearData() (it would still contain the
         // "Files" string if any files were included in the drag).
         this.types.filter((type) => type !== "Files")
@@ -511,7 +550,7 @@ namespace dnd {
       if (typeof data === "string") {
         // If there is already an item in the drag data store item list whose
         // kind is Plain Unicode string and whose type string is equal to the
-        // value of the method's second argument, converted to ASCII lowercase,
+        // value of the method"s second argument, converted to ASCII lowercase,
         // then throw a NotSupportedError exception and abort these steps.
         const typeLowerCase = type.toLowerCase();
         if (this.typeTable[typeLowerCase]) {
@@ -520,8 +559,8 @@ namespace dnd {
 
         // Otherwise, add an item to the drag data store item list whose kind is
         // Plain Unicode string, whose type string is equal to the value of the
-        // method's second argument, converted to ASCII lowercase, and whose
-        // data is the string given by the method's first argument.
+        // method"s second argument, converted to ASCII lowercase, and whose
+        // data is the string given by the method"s first argument.
         const stringItem = DataTransferItem.createForString(
           data, typeLowerCase, this.store);
         this.items.push(stringItem);
@@ -530,7 +569,7 @@ namespace dnd {
       else {
         // Add an item to the drag data store item list whose kind is File,
         // whose type string is the type of the File, converted to ASCII
-        // lowercase, and whose data is the same as the File's data.
+        // lowercase, and whose data is the same as the File"s data.
         const fileItem = DataTransferItem.createForFile(
           data, this.store);
         this.items.push(fileItem);
@@ -556,17 +595,17 @@ namespace dnd {
 
 
   /**
-   * While the DataTransferItem object's DataTransfer object is associated with
-   * a drag data store and that drag data store's drag data store item list
+   * While the DataTransferItem object"s DataTransfer object is associated with
+   * a drag data store and that drag data store"s drag data store item list
    * still contains the item that the DataTransferItem object represents, the
-   * DataTransferItem object's mode is the same as the drag data store mode.
-   * When the DataTransferItem object's DataTransfer object is not associated
+   * DataTransferItem object"s mode is the same as the drag data store mode.
+   * When the DataTransferItem object"s DataTransfer object is not associated
    * with a drag data store, or if the item that the DataTransferItem object
    * represents has been removed from the relevant drag data store item list,
-   * the DataTransferItem object's mode is the disabled mode. The drag data
+   * the DataTransferItem object"s mode is the disabled mode. The drag data
    * store referenced in this section (which is used only when the
    * DataTransferItem object is not in the disabled mode) is the drag data store
-   * with which the DataTransferItem object's DataTransfer object is associated.
+   * with which the DataTransferItem object"s DataTransfer object is associated.
    *
    * @see https://html.spec.whatwg.org/multipage/interaction.html#datatransferitem
    */
@@ -711,7 +750,7 @@ namespace dnd {
     }
 
     return textUriList.split(/\r\n/).filter((line) => {
-      // Any lines beginning with the '#' character are comment lines
+      // Any lines beginning with the "#" character are comment lines
       // and are ignored during processing.
       // The remaining non-comment lines shall be URIs (URNs or URLs),
       // encoded according to the URL or URN specifications (RFC2141,
